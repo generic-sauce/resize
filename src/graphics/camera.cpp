@@ -2,6 +2,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <math.h>
 
+// lense
+
 bool Lense::isPerspective()
 {
 	try {
@@ -46,6 +48,20 @@ void Lense::setOrtho(float left, float right, float up, float bottom, float near
 	m_projection = Ortho{left, right, up, bottom, near, far};
 }
 
+glm::mat4 Lense::matrix()
+{
+	if (auto p_ = perspective()) {
+		auto p = *p_;
+		return glm::perspective(glm::radians(p->fov), p->aspectRatio, p->near, p->far);
+	} else if (auto p_ = ortho()) {
+		auto p = *p_;
+		return glm::ortho(p->left, p->right, p->top, p->bottom, p->near, p->far);
+	} else
+		return glm::mat4(1.f);
+}
+
+// camera
+
 glm::vec3 Camera::dir()
 {
 	try {
@@ -66,8 +82,7 @@ glm::vec3 Camera::right()
 
 glm::vec3 Camera::up()
 {
-	glm::vec3 dir = Camera::dir();
-	return glm::normalize(glm::cross(glm::vec3(1, 0, 0), dir));
+	return glm::vec3(0, 1, 0);
 }
 
 void Camera::setDir(glm::vec3 dir)
@@ -99,16 +114,3 @@ glm::mat4 Camera::matrix()
 
 	return glm::lookAt(m_pos, m_pos + dir, up);
 }
-
-glm::mat4 Lense::matrix()
-{
-	if (auto p_ = perspective()) {
-		auto p = *p_;
-		return glm::perspective(glm::radians(p->fov), p->aspectRatio, p->near, p->far);
-	} else if (auto p_ = ortho()) {
-		auto p = *p_;
-		return glm::ortho(p->left, p->right, p->top, p->bottom, p->near, p->far);
-	} else
-		return glm::mat4(1.f);
-}
-

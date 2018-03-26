@@ -16,7 +16,7 @@ public:
 
 	std::vector<Parall> m_paralls;
 	std::vector<Parall> m_portals;
-	PortalPairs  m_portalLinks;
+	PortalPairs m_portalLinks;
 };
 
 #endif

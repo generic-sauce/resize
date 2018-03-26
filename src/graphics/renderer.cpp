@@ -253,31 +253,25 @@ void Renderer::upload(GameWorld* gameWorld)
 		GL_STATIC_DRAW);
 
 	m_verticesCount = positions.size();
-	std::cout << "verticesCount " << m_verticesCount << std::endl;
 }
 
 void Renderer::render(Graphics* graphics, GameWorld* gameWorld)
 {
 	upload(gameWorld);
 
-	render(graphics, gameWorld, *graphics->m_camera, 8);
+	render(graphics, gameWorld, *graphics->m_camera, 4);
 }
 
 void Renderer::render(Graphics* graphics, GameWorld* gameWorld, Camera camera,
 	int max_recursions, int recursion,
 	std::vector<Parall> parentPortals, std::vector<glm::mat4> parentMVPs)
 {
-	//std::cout << 0;
-	if (recursion >= max_recursions) {
-		//std::cout << std::endl;
+	if (recursion >= max_recursions)
 		return;
-	}
-	//std::cout << 1;
 
 	auto portals = getVisiblePortals(graphics, gameWorld, camera);
 
 	for (std::size_t i = 0; i < portals.size(); i += 2) {
-		//std::cout << 2;
 		auto& p0 = portals[i    ];
 		auto& p1 = portals[i + 1];
 
@@ -306,6 +300,24 @@ void Renderer::render(Graphics* graphics, GameWorld* gameWorld, Camera camera,
 		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
 		glStencilMask(0x00);
 		glEnable(GL_DEPTH_TEST);
+
+		if (parentPortals.size() >= 1) {
+			const auto& clippingPortal = p1;
+			auto MV = camera.matrix();
+			auto clippingPositionCameraspace = MV * glm::vec4(clippingPortal.pos, 1);
+			auto clippingNormalCameraspace =
+				glm::normalize(MV * glm::vec4(glm::normalize(glm::cross(clippingPortal.right, clippingPortal.up)), 0));
+
+			glUseProgram(m_programId);
+			glUniform3f(glGetUniformLocation(m_programId, "clippingPositionCameraspace"),
+				clippingPositionCameraspace.x, clippingPositionCameraspace.y, clippingPositionCameraspace.z);
+			glUniform3f(glGetUniformLocation(m_programId, "clippingNormalCameraspace"),
+				clippingNormalCameraspace.x, clippingNormalCameraspace.y, clippingNormalCameraspace.z);
+		} else {
+			glUseProgram(m_programId);
+			glUniform3f(glGetUniformLocation(m_programId, "clippingPositionCameraspace"), 0, 0, 0);
+			glUniform3f(glGetUniformLocation(m_programId, "clippingNormalCameraspace"), 0, 0, 0);
+		}
 
 		renderScene(graphics, gameWorld, camera);
 
@@ -366,8 +378,6 @@ std::vector<Parall> Renderer::getVisiblePortals(Graphics* graphics, GameWorld* g
 		bool isFrontFace = glm::dot(dir, p0.pos - camera.m_pos) < 0;
 
 		if (isFrontFace) {
-			//std::cout << "frontFace" << i0 << std::endl;
-
 			/* intersection check not yet implemented
 			auto positions = parallsToTriangles({p0});
 			std::transform(std::begin(positions), std::end(positions), std::begin(positions), [&] (auto& p) {
@@ -384,7 +394,7 @@ std::vector<Parall> Renderer::getVisiblePortals(Graphics* graphics, GameWorld* g
 			});
 
 			if (isInScreen) {
-				std::cout << "inScreen" << i0 << std::endl;*/
+				;*/
 
 				portals.push_back(p0);
 				portals.push_back(p1);
@@ -410,7 +420,6 @@ Camera Renderer::teleportCamera(Camera camera, Parall inPortal, Parall outPortal
 	auto angle = glm::acos(glm::dot(portalNormal, -otherNormal));
 	if (glm::dot(inPortal.right, -otherNormal) > 0)
 		angle = glm::pi<float>() * 2.f - angle;
-	std::cout << angle << std::endl;
 
 	camera.m_pos = outPortal.pos + outPortal.right + glm::rotate(
 		-direction * distance,

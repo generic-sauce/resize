@@ -7,7 +7,7 @@ in float clippingDepth;
 
 void main()
 {
-	//if (-clippingDepth < 0.f)
+	//if (clippingDepth > 0.f)
 	//	discard;
 
 	vec4 cameraDirection = vec4(0, 0, -1, 0);
@@ -21,9 +21,8 @@ void main()
 		- vec4(1, 1, 1, 1) * 0.5 *  (-1 / ((length(positionCameraspace) / 10) + 1) + 1);
 		//- vec4(1, 1, 1, 1) * 0.6 * directionFactor;
 	
-	/*if (int(floor(gl_FragCoord.x)) % 2 == 0)
+	if (int(floor(gl_FragCoord.x)) % 2 == 0)
 		gl_FragColor = vec4(1, 1, 1, 1) * .5f;
 	else
-		gl_FragColor = vec4(clippingDepth, -clippingDepth, abs(clippingDepth) < 0.0001f, 1);*/
-
+		gl_FragColor = vec4(clippingDepth, -clippingDepth, abs(clippingDepth) < 0.0001f, 1);
 }
