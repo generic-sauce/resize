@@ -213,7 +213,7 @@ bool Renderer::init(Graphics* graphics)
 		0,
 		nullptr);
 
-	{ // upload portal triangles
+	/*{ // upload portal triangles
 		glm::vec3 portal[] {
 			{0, 0, 0},
 			{1, 0, 0},
@@ -224,7 +224,7 @@ bool Renderer::init(Graphics* graphics)
 		};
 		glBindBuffer(GL_ARRAY_BUFFER, m_portalVbos[0]);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(portal), portal, GL_STATIC_DRAW);
-	}
+	}*/
 
 	glBindVertexArray(0);
 
@@ -267,22 +267,24 @@ void Renderer::render(Graphics* graphics, GameWorld* gameWorld, Camera camera,
 	int max_recursions, int recursion,
 	std::vector<Parall> parentPortals, std::vector<glm::mat4> parentMVPs)
 {
-	std::cout << 0;
+	//std::cout << 0;
 	if (recursion >= max_recursions) {
-		std::cout << std::endl;
+		//std::cout << std::endl;
 		return;
 	}
-	std::cout << 1;
+	//std::cout << 1;
 
 	auto portals = getVisiblePortals(graphics, gameWorld, camera);
 
 	for (std::size_t i = 0; i < portals.size(); i += 2) {
-		std::cout << 2;
+		//std::cout << 2;
 		auto& p0 = portals[i    ];
 		auto& p1 = portals[i + 1];
 
-		std::vector<Parall> relevantPortals = parentPortals;
+		auto relevantPortals = parentPortals;
 		relevantPortals.push_back(p0);
+		auto relevantMVPs = parentMVPs;
+		relevantMVPs.push_back(camera.m_lense.matrix() * camera.matrix());
 
 		glStencilMask(0xff);
 		glClear(GL_STENCIL_BUFFER_BIT);
@@ -309,12 +311,8 @@ void Renderer::render(Graphics* graphics, GameWorld* gameWorld, Camera camera,
 
 		glDisable(GL_STENCIL_TEST);
 
-		parentMVPs.push_back(camera.m_lense.matrix()
-			* camera.matrix()
-			//* glm::scale(glm::mat4(1.f), glm::vec3(p0.right.length(), p0.up.length(), 1)));
-			* glm::scale(glm::mat4(1.f), glm::vec3(10, 10, 1)));
 		render(graphics, gameWorld, teleportCamera(camera, p0, p1), max_recursions, recursion + 1,
-			relevantPortals, parentMVPs);
+			relevantPortals, relevantMVPs);
 	}
 }
 
@@ -323,12 +321,16 @@ void Renderer::renderPortals(Graphics* graphics, GameWorld* gameWorld, Camera ca
 {
 	assert(portals.size() == MVPs.size());
 
+	auto triangles = parallsToTriangles(portals);
+	glBindBuffer(GL_ARRAY_BUFFER, m_portalVbos[0]);
+	glBufferData(GL_ARRAY_BUFFER, triangles.size() * sizeof(glm::vec3), triangles.data(), GL_STATIC_DRAW);
+
 	glUseProgram(m_simpleProgramId);
 
 	glBindVertexArray(m_portalVao);
 	for (std::size_t i = 0; i < portals.size(); i++) {
 		glUniformMatrix4fv(glGetUniformLocation(m_simpleProgramId, "MVP"), 1, GL_FALSE, &MVPs[i][0][0]);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glDrawArrays(GL_TRIANGLES, i * 6, 6);
 	}
 	glBindVertexArray(0);
 }
@@ -408,8 +410,9 @@ Camera Renderer::teleportCamera(Camera camera, Parall inPortal, Parall outPortal
 	auto angle = glm::acos(glm::dot(portalNormal, -otherNormal));
 	if (glm::dot(inPortal.right, -otherNormal) > 0)
 		angle = glm::pi<float>() * 2.f - angle;
+	std::cout << angle << std::endl;
 
-	camera.m_pos = outPortal.pos + glm::rotate(
+	camera.m_pos = outPortal.pos + outPortal.right + glm::rotate(
 		-direction * distance,
 		angle,
 		axis);

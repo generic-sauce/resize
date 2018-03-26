@@ -20,7 +20,7 @@ GameWorld::GameWorld()
 	}
 	, m_portals{
 		{vec3( 0,  0,  0), vec3( 10,  0,  0), vec3( 0, 10,  0)}, // back
-		{vec3( 0,  0, 10), vec3(-10,  0,  0), vec3( 0, 10,  0)}, // front
+		{vec3(10,  0, 10), vec3(-10,  0,  0), vec3( 0, 10,  0)}, // front
 		/*{vec3(-20, 1,  0) + glm::normalize(glm::vec3( 1,  0,  1)),
 			10.f * glm::normalize(vec3( 1,  0,  1)),
 			vec3( 0, 10,  0)} // center*/
