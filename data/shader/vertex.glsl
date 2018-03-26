@@ -30,7 +30,7 @@ void main()
 	vec3 b = vec3(p.x - e.x, p.y - e.y, r.z * l);
 	clippingDepth = l;*/
 
-	if (abs(positionCameraspace.z - clippingPositionCameraspace.z) < 0.001f)
+	/*if (abs(positionCameraspace.z - clippingPositionCameraspace.z) < 0.001f)
 		clippingDepth = positionCameraspace.z;
 	else {
 		float distanceToCamera =
@@ -40,7 +40,7 @@ void main()
 			) / clippingNormalCameraspace.z
 			+ clippingPositionCameraspace.z;
 		clippingDepth = positionCameraspace.z - distanceToCamera;
-	}
+	}*/
 
 	gl_Position = MVP * vec4(vertexPositionModelspace, 1);
 }

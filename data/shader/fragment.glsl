@@ -7,8 +7,8 @@ in float clippingDepth;
 
 void main()
 {
-	if (-clippingDepth < 0.f)
-		discard;
+	//if (-clippingDepth < 0.f)
+	//	discard;
 
 	vec4 cameraDirection = vec4(0, 0, -1, 0);
 

@@ -80,6 +80,8 @@ int main()
 
 		using namespace std::chrono_literals;
 		std::this_thread::sleep_for(50ms);
+
+		//std::cout << getchar() << std::endl;
 	}
 
 	return 0;

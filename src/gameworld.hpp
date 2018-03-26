@@ -8,13 +8,15 @@
 
 #include "shapes.hpp"
 
+using PortalPairs = std::map<std::size_t, std::size_t>;
+
 class GameWorld {
 public:
 	GameWorld();
 
 	std::vector<Parall> m_paralls;
 	std::vector<Parall> m_portals;
-	std::map<std::size_t, std::size_t> m_portalLinks;
+	PortalPairs  m_portalLinks;
 };
 
 #endif

@@ -10,24 +10,40 @@
 #include <array>
 #include <cstring>
 #include <glm/gtx/rotate_vector.hpp>
+#include <algorithm>
 
 std::ostream& operator<< (std::ostream& os, const glm::vec3& v)
 {
 	return os << "(" << v.x << " | " << v.y << " | " << v.z << ")";
 }
 
-template <typename InIt, typename OutContainer>
-inline void generateTriangleNormals(InIt begin, InIt end, std::back_insert_iterator<OutContainer> outIt)
+std::vector<glm::vec3> parallsToTriangles(const std::vector<Parall>& paralls)
 {
-	for (auto it = begin; it + 2 < end; it += 3) {
-		const auto& p0 = *it;
-		const auto& p1 = *(it + 1);
-		const auto& p2 = *(it + 2);
-		auto normal = glm::normalize(glm::cross(p1 - p0, p2 - p0));
-		*outIt = normal;
-		*outIt = normal;
-		*outIt = normal;
+	std::vector<glm::vec3> positions;
+	for (auto& p : paralls) {
+		positions.push_back(p.pos);
+		positions.push_back(p.pos + p.right);
+		positions.push_back(p.pos + p.right + p.up);
+		positions.push_back(p.pos);
+		positions.push_back(p.pos + p.right + p.up);
+		positions.push_back(p.pos + p.up);
 	}
+
+	return positions;
+}
+
+std::vector<glm::vec3> generateTriangleNormals(const std::vector<glm::vec3>& positions)
+{
+	std::vector<glm::vec3> normals;
+	for (std::size_t i = 0; i < positions.size(); i += 3) {
+		auto normal = glm::normalize(glm::cross(
+			positions[i + 1] - positions[i], positions[i + 2] - positions[i]));
+		normals.push_back(normal);
+		normals.push_back(normal);
+		normals.push_back(normal);
+	}
+
+	return normals;
 }
 
 GLuint loadShaderFromSourceCode(GLenum type, const char* sourcecode, int length)
@@ -145,14 +161,6 @@ bool Renderer::init(Graphics* graphics)
 	if (!m_programId)
 		return false;
 
-	m_textureProgramId = loadProgram({
-		{GL_VERTEX_SHADER, "data/shader/texture_vertex.glsl"},
-		{GL_FRAGMENT_SHADER, "data/shader/texture_fragment.glsl"},
-		});
-
-	if (!m_textureProgramId)
-		return false;
-
 	m_simpleProgramId = loadProgram({
 		{GL_VERTEX_SHADER, "data/shader/simple_vertex.glsl"},
 		{GL_FRAGMENT_SHADER, "data/shader/simple_fragment.glsl"},
@@ -161,13 +169,14 @@ bool Renderer::init(Graphics* graphics)
 	if (!m_simpleProgramId)
 		return false;
 
-	glCreateVertexArrays(1, &m_vao);
-	glGenBuffers(2, &m_vbos[0]);
+	// scene buffers
+	glCreateVertexArrays(1, &m_sceneVao);
+	glGenBuffers(2, &m_sceneVbos[0]);
 
-	glBindVertexArray(m_vao);
+	glBindVertexArray(m_sceneVao);
 
 	glEnableVertexAttribArray(1);
-	glBindBuffer(GL_ARRAY_BUFFER, m_vbos[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, m_sceneVbos[0]);
 	glVertexAttribPointer(
 		1,
 		3,
@@ -177,7 +186,7 @@ bool Renderer::init(Graphics* graphics)
 		nullptr);
 
 	glEnableVertexAttribArray(2);
-	glBindBuffer(GL_ARRAY_BUFFER, m_vbos[1]);
+	glBindBuffer(GL_ARRAY_BUFFER, m_sceneVbos[1]);
 	glVertexAttribPointer(
 		2,
 		3,
@@ -188,82 +197,144 @@ bool Renderer::init(Graphics* graphics)
 
 	glBindVertexArray(0);
 
+	// portal buffers
+	glCreateVertexArrays(1, &m_portalVao);
+	glGenBuffers(1, &m_portalVbos[0]);
+
+	glBindVertexArray(m_portalVao);
+
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, m_portalVbos[0]);
+	glVertexAttribPointer(
+		1,
+		3,
+		GL_FLOAT,
+		GL_FALSE,
+		0,
+		nullptr);
+
+	{ // upload portal triangles
+		glm::vec3 portal[] {
+			{0, 0, 0},
+			{1, 0, 0},
+			{1, 1, 0},
+			{0, 0, 0},
+			{1, 1, 0},
+			{0, 1, 0},
+		};
+		glBindBuffer(GL_ARRAY_BUFFER, m_portalVbos[0]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(portal), portal, GL_STATIC_DRAW);
+	}
+
+	glBindVertexArray(0);
+
 	return true;
 }
 
 void Renderer::resize(glm::uvec2 size)
 {
-}
-
-void Renderer::render(Graphics *graphics, GameWorld* world)
-{
-	std::cout << "-- render --" << std::endl;
-
-	float plainDepthTexture [graphics->windowSize().x * graphics->windowSize().y];
-	for (std::size_t i = 0; i < graphics->windowSize().x * graphics->windowSize().y; i++)
-		plainDepthTexture[i] = (std::rand() % 1000) / 1000.f;
 	
-	static float recursions = 1.f;
-	if (glfwGetKey(graphics->window(), GLFW_KEY_T))
-		recursions += 0.2f;
-	if (glfwGetKey(graphics->window(), GLFW_KEY_G))
-		recursions -= 0.2f;
-	recursions = std::max(0.f, recursions);
-
-	glm::vec3 clippingPositionCameraspace(0, 0, 0);
-	glUniform3f(glGetUniformLocation(m_programId, "clippingPositionCameraspace"),
-		clippingPositionCameraspace.x,
-		clippingPositionCameraspace.y,
-		clippingPositionCameraspace.z);
-	glm::vec3 clippingNormalCameraspace(0, 0, 1);
-	glUniform3f(glGetUniformLocation(m_programId, "clippingNormalCameraspace"),
-		clippingNormalCameraspace.x,
-		clippingNormalCameraspace.y,
-		clippingNormalCameraspace.z);
-
-	std::size_t count = prepareRender(graphics, world);
-	renderWorld(graphics, count, *graphics->m_camera);
-	renderPortals(graphics, world, count, *graphics->m_camera, recursions);
 }
 
-std::size_t Renderer::prepareRender(Graphics* graphics, GameWorld* world)
+void Renderer::upload(GameWorld* gameWorld)
 {
-	std::vector<glm::vec3> vertices;
-	vertices.reserve(world->m_paralls.size() * 6);
-	for (auto& rect : world->m_paralls) {
-		vertices.push_back(rect.pos);
-		vertices.push_back(rect.pos + rect.right);
-		vertices.push_back(rect.pos + rect.right + rect.up);
-		vertices.push_back(rect.pos);
-		vertices.push_back(rect.pos + rect.up + rect.right);
-		vertices.push_back(rect.pos + rect.up);
+	auto positions = parallsToTriangles(gameWorld->m_paralls);
+	glBindBuffer(GL_ARRAY_BUFFER, m_sceneVbos[0]);
+	glBufferData(GL_ARRAY_BUFFER,
+		positions.size() * sizeof(glm::vec3),
+		positions.data(),
+		GL_STATIC_DRAW);
+
+	auto normals = generateTriangleNormals(positions);
+	glBindBuffer(GL_ARRAY_BUFFER, m_sceneVbos[1]);
+	glBufferData(GL_ARRAY_BUFFER,
+		normals.size() * sizeof(glm::vec3),
+		normals.data(),
+		GL_STATIC_DRAW);
+
+	m_verticesCount = positions.size();
+	std::cout << "verticesCount " << m_verticesCount << std::endl;
+}
+
+void Renderer::render(Graphics* graphics, GameWorld* gameWorld)
+{
+	upload(gameWorld);
+
+	render(graphics, gameWorld, *graphics->m_camera, 8);
+}
+
+void Renderer::render(Graphics* graphics, GameWorld* gameWorld, Camera camera,
+	int max_recursions, int recursion,
+	std::vector<Parall> parentPortals, std::vector<glm::mat4> parentMVPs)
+{
+	std::cout << 0;
+	if (recursion >= max_recursions) {
+		std::cout << std::endl;
+		return;
 	}
+	std::cout << 1;
 
-	std::vector<glm::vec3> normals;
-	normals.reserve(vertices.size());
-	generateTriangleNormals(std::begin(vertices), std::end(vertices), std::back_inserter(normals));
+	auto portals = getVisiblePortals(graphics, gameWorld, camera);
 
-	glBindBuffer(GL_ARRAY_BUFFER, m_vbos[0]);
-	glBufferData(GL_ARRAY_BUFFER,
-			vertices.size() * sizeof(glm::vec3),
-			vertices.data(),
-			GL_STATIC_DRAW);
+	for (std::size_t i = 0; i < portals.size(); i += 2) {
+		std::cout << 2;
+		auto& p0 = portals[i    ];
+		auto& p1 = portals[i + 1];
 
-	glBindBuffer(GL_ARRAY_BUFFER, m_vbos[1]);
-	glBufferData(GL_ARRAY_BUFFER,
-			normals.size() * sizeof(glm::vec3),
-			normals.data(),
-			GL_STATIC_DRAW);
+		std::vector<Parall> relevantPortals = parentPortals;
+		relevantPortals.push_back(p0);
 
-	return vertices.size();
+		glStencilMask(0xff);
+		glClear(GL_STENCIL_BUFFER_BIT);
+
+		glDisable(GL_DEPTH_TEST);
+		glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+		glDepthMask(GL_FALSE);
+
+		glEnable(GL_STENCIL_TEST);
+		glStencilFunc(GL_ALWAYS, 0, 0xff);
+		glStencilOp(GL_ZERO, GL_INCR, GL_INCR);
+		glStencilMask(0xff);
+
+		renderPortals(graphics, gameWorld, camera, parentPortals, parentMVPs);
+
+		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+		glDepthMask(GL_TRUE);
+		glStencilFunc(GL_EQUAL, recursion, 0xff);
+		glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+		glStencilMask(0x00);
+		glEnable(GL_DEPTH_TEST);
+
+		renderScene(graphics, gameWorld, camera);
+
+		glDisable(GL_STENCIL_TEST);
+
+		parentMVPs.push_back(camera.m_lense.matrix()
+			* camera.matrix()
+			//* glm::scale(glm::mat4(1.f), glm::vec3(p0.right.length(), p0.up.length(), 1)));
+			* glm::scale(glm::mat4(1.f), glm::vec3(10, 10, 1)));
+		render(graphics, gameWorld, teleportCamera(camera, p0, p1), max_recursions, recursion + 1,
+			relevantPortals, parentMVPs);
+	}
 }
 
-void Renderer::renderWorld(Graphics* graphics, std::size_t count, Camera camera)
+void Renderer::renderPortals(Graphics* graphics, GameWorld* gameWorld, Camera camera,
+	std::vector<Parall> portals, std::vector<glm::mat4> MVPs)
 {
-	std::cout << "render" << std::endl;
+	assert(portals.size() == MVPs.size());
 
-	//glClear(GL_DEPTH_BUFFER_BIT);
+	glUseProgram(m_simpleProgramId);
 
+	glBindVertexArray(m_portalVao);
+	for (std::size_t i = 0; i < portals.size(); i++) {
+		glUniformMatrix4fv(glGetUniformLocation(m_simpleProgramId, "MVP"), 1, GL_FALSE, &MVPs[i][0][0]);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+	}
+	glBindVertexArray(0);
+}
+
+void Renderer::renderScene(Graphics* graphics, GameWorld* gameWorld, Camera camera)
+{
 	glUseProgram(m_programId);
 
 	glm::mat4 M = glm::mat4(1.f);
@@ -275,167 +346,78 @@ void Renderer::renderWorld(Graphics* graphics, std::size_t count, Camera camera)
 	glUniformMatrix4fv(glGetUniformLocation(m_programId, "V"), 1, GL_FALSE, &V[0][0]);
 	glUniformMatrix4fv(glGetUniformLocation(m_programId, "MVP"), 1, GL_FALSE, &MVP[0][0]);
 
-	glBindVertexArray(m_vao);
-	glDrawArrays(GL_TRIANGLES, 0, count);
+	glBindVertexArray(m_sceneVao);
+	glDrawArrays(GL_TRIANGLES, 0, m_verticesCount);
 	glBindVertexArray(0);
 }
 
-void Renderer::renderPortals(Graphics* graphics, GameWorld* world, std::size_t count, Camera renderCamera, std::size_t recursions)
+std::vector<Parall> Renderer::getVisiblePortals(Graphics* graphics, GameWorld* gameWorld, Camera camera)
 {
-	if (recursions <= 0)
-		return;
+	std::vector<Parall> portals;
 
-	glm::mat4 M = glm::mat4(1.f);
-	glm::mat4 V = renderCamera.matrix();
-	glm::mat4 MV = V * M;
-
-	for (std::size_t i = 0; i < world->m_portals.size(); i++)
+	for (auto& [i0, i1] : gameWorld->m_portalLinks)
 	{
-		const auto& portal = world->m_portals[i];
-		Camera camera = renderCamera;
+		auto& p0 = gameWorld->m_portals[i0];
+		auto& p1 = gameWorld->m_portals[i1];
 
-		auto it = world->m_portalLinks.find(i);
-		//assert(it != world->m_portalLinks.end());
-		if (it == world->m_portalLinks.end())
-			continue;
+		glm::vec3 dir = glm::normalize(glm::cross(p0.right, p0.up));
+		bool isFrontFace = glm::dot(dir, p0.pos - camera.m_pos) < 0;
 
-		const auto& other = world->m_portals[it->second];
+		if (isFrontFace) {
+			//std::cout << "frontFace" << i0 << std::endl;
 
-		auto portalNormal = glm::normalize(glm::cross(portal.right, portal.up));
-		auto otherNormal = glm::normalize(glm::cross(other.right, other.up));
+			/* intersection check not yet implemented
+			auto positions = parallsToTriangles({p0});
+			std::transform(std::begin(positions), std::end(positions), std::begin(positions), [&] (auto& p) {
+				return MVP * glm::vec4(p, 1);
+			});
 
-		glm::vec3 direction = portal.pos - camera.m_pos;
-		float distance = glm::length(direction);
-		direction = glm::normalize(direction);
+			bool isInScreen = intersect(positions, {
+				{-1, -1, 0},
+				{ 1, -1, 0},
+				{ 1,  1, 0},
+				{-1, -1, 0},
+				{ 1,  1, 0},
+				{-1,  1, 0}
+			});
 
-		float dot = glm::dot(portalNormal, -direction);
-		if (dot <= 0) {
-			std::cout << "skipping portal" << std::endl;
-			continue;
+			if (isInScreen) {
+				std::cout << "inScreen" << i0 << std::endl;*/
+
+				portals.push_back(p0);
+				portals.push_back(p1);
+
+			//}
 		}
-		{ // TODO intersect screen
-		}
-
-		std::cout << "portal" << std::endl;
-
-		auto axis = glm::normalize(glm::cross(portalNormal, otherNormal + glm::vec3(1, 1, 1) * 0.001f));
-
-		auto angle = glm::acos(glm::dot(portalNormal, -otherNormal));
-		if (glm::dot(portal.right, -otherNormal) > 0)
-			angle = glm::pi<float>() * 2.f - angle;
-
-		camera.m_pos = other.pos + glm::rotate(
-			-direction * distance,
-			angle,
-			axis);
-
-		camera.setDir(glm::rotate(
-			camera.dir(),
-			angle,
-			axis));
-
-		//std::cout << renderCamera.m_pos << renderCamera.dir() << std::endl;
-		//std::cout << camera.m_pos << camera.dir() << std::endl;
-
-		glm::vec3 clippingPositionCameraspace = MV * glm::vec4(portal.pos, 1);
-		glUniform3f(glGetUniformLocation(m_programId, "clippingPositionCameraspace"),
-			clippingPositionCameraspace.x,
-			clippingPositionCameraspace.y,
-			clippingPositionCameraspace.z);
-		glm::vec3 clippingNormalCameraspace = MV * glm::vec4(portalNormal, 0);
-		//std::cout << portalNormal << clippingPositionCameraspace << std::endl;
-		glUniform3f(glGetUniformLocation(m_programId, "clippingNormalCameraspace"),
-			clippingNormalCameraspace.x,
-			clippingNormalCameraspace.y,
-			clippingNormalCameraspace.z);
-
-		glEnable(GL_STENCIL_TEST);
-
-		glStencilFunc(GL_ALWAYS, 1, 0xFF);
-		glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-		glStencilMask(0xFF);
-
-		glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-		glDepthMask(GL_FALSE);
-
-		glClear(GL_STENCIL_BUFFER_BIT);
-
-		renderPortalFace(graphics, portal, renderCamera);
-
-		glStencilFunc(GL_EQUAL, 1, 0xFF);
-		glStencilMask(0x00);
-		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-		glDepthMask(GL_TRUE);
-
-		renderWorld(graphics, prepareRender(graphics, world), camera);
-
-		glDisable(GL_STENCIL_TEST);
-
-		renderPortals(graphics, world, count, camera, recursions - 1);
 	}
+
+	return portals;
 }
 
-void Renderer::renderPortalFace(Graphics* graphics, const Parall& portal, Camera& camera)
+Camera Renderer::teleportCamera(Camera camera, Parall inPortal, Parall outPortal)
 {
-	glm::vec3 vertices[] {
-		portal.pos,
-		portal.pos + portal.right,
-		portal.pos + portal.right + portal.up,
-		portal.pos,
-		portal.pos + portal.right + portal.up,
-		portal.pos + portal.up,
-	};
+	auto portalNormal = glm::normalize(glm::cross(inPortal.right, inPortal.up));
+	auto otherNormal = glm::normalize(glm::cross(outPortal.right, outPortal.up));
 
-	glBindBuffer(GL_ARRAY_BUFFER, m_vbos[0]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glm::vec3 direction = inPortal.pos - camera.m_pos;
+	float distance = glm::length(direction);
+	direction = glm::normalize(direction);
 
-	glm::mat4 MVP = camera.m_lense.matrix() * camera.matrix() * glm::mat4(1.f);
-	glUniformMatrix4fv(glGetUniformLocation(m_programId, "MVP"), 1, GL_FALSE, &MVP[0][0]);
+	auto axis = glm::normalize(glm::cross(portalNormal, otherNormal + glm::vec3(1, 1, 1) * 0.001f));
 
-	//glUseProgram(m_simpleProgramId);
+	auto angle = glm::acos(glm::dot(portalNormal, -otherNormal));
+	if (glm::dot(inPortal.right, -otherNormal) > 0)
+		angle = glm::pi<float>() * 2.f - angle;
 
-	glBindVertexArray(m_vao);
-	glDrawArrays(GL_TRIANGLES, 0, 6);
-}
+	camera.m_pos = outPortal.pos + glm::rotate(
+		-direction * distance,
+		angle,
+		axis);
 
-void Renderer::render(Graphics* graphics, GLuint textureId)
-{
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	camera.setDir(glm::rotate(
+		camera.dir(),
+		angle,
+		axis));
 
-	glUseProgram(m_textureProgramId);
-
-	glActiveTexture(GL_TEXTURE0);
-	glUniform1i(glGetUniformLocation(m_textureProgramId, "tex"), 0);
-	glBindTexture(GL_TEXTURE_2D, textureId);
-
-	using namespace glm;
-	vec3 vertices[] = {
-		vec3(-1, -1, 0),
-		vec3( 1, -1, 0),
-		vec3( 1,  1, 0),
-
-		vec3(-1, -1, 0),
-		vec3( 1,  1, 0),
-		vec3(-1,  1, 0)
-	};
-
-	vec3 uvs[] = {
-		vec3(0, 0, 0),
-		vec3(1, 0, 0),
-		vec3(1, 1, 0),
-
-		vec3(0, 0, 0),
-		vec3(1, 1, 0),
-		vec3(0, 1, 0)
-	};
-
-	glBindBuffer(GL_ARRAY_BUFFER, m_vbos[0]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_ARRAY_BUFFER, m_vbos[1]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(uvs), uvs, GL_STATIC_DRAW);
-
-	glBindVertexArray(m_vao);
-	glDrawArrays(GL_TRIANGLES, 0, 3);
-	glBindVertexArray(0);
+	return camera;
 }

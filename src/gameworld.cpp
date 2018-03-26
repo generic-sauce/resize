@@ -10,6 +10,8 @@ GameWorld::GameWorld()
 		{vec3{10,  0,  0}, vec3{ 0,  0, 10}, vec3{ 0, 10,  0}}, // right
 		{vec3( 6,  6, 12), vec3( 2,  0,  0), vec3( 0,  2,  0)}, // something
 
+		//{vec3( 0,  0, 10), vec3(-10,  0,  0), vec3( 0, 10,  0)}, // test
+
 		/*{vec3{-20, 0,  0}, 12.f * glm::normalize(vec3{ 1,  0,  1}), vec3{0,  1,  0}}, // bottom
 		{vec3{-20,11,  0}, 12.f * glm::normalize(vec3{ 1,  0,  1}), vec3{0,  1,  0}}, // top
 		{vec3{-20, 1,  0},        glm::normalize(vec3{ 1,  0,  1}), vec3{0, 10,  0}}, // left
