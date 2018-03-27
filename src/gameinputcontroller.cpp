@@ -66,6 +66,18 @@ void GameInputController::update(std::chrono::milliseconds deltaTime)
 	if (glfwGetKey(m_graphics->window(), GLFW_KEY_E))
 		m_horizontalAngle -= m_cursorSpeed;
 
+	if (glfwGetKey(m_graphics->window(), GLFW_KEY_1)) {
+		m_horizontalAngle = 0.f;
+		m_verticalAngle = 0.f;
+	}
+	if (glfwGetKey(m_graphics->window(), GLFW_KEY_2)) {
+		m_horizontalAngle = 3.14f;
+		m_verticalAngle = 0.f;
+	}
+	if (glfwGetKey(m_graphics->window(), GLFW_KEY_3)) {
+		m_camera->m_pos = glm::vec3(1, 1, 10);
+	}
+
 	const auto parallUp = m_camera->up() * 10.f;
 	const auto parallRight = m_camera->right() * 10.f;
 	const auto parallPos = m_camera->m_pos

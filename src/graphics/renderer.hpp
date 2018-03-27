@@ -22,7 +22,7 @@ public:
 	void render(Graphics* graphics, GameWorld* gameWorld);
 
 private:
-	void render(Graphics* graphics, GameWorld* gameWorld, Camera camera, int max_recursions,
+	void renderRecursive(Graphics* graphics, GameWorld* gameWorld, Camera camera, int max_recursions,
 		int recursion = 0, std::vector<Parall> parentPortals = {}, std::vector<glm::mat4> parentMVPs = {});
 	void renderPortals(Graphics* graphics, GameWorld* gameWorld,
 		Camera camera, std::vector<Parall> portals, std::vector<glm::mat4> MVPs);

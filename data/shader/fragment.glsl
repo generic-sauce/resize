@@ -21,8 +21,12 @@ void main()
 		- vec4(1, 1, 1, 1) * 0.5 *  (-1 / ((length(positionCameraspace) / 10) + 1) + 1);
 		//- vec4(1, 1, 1, 1) * 0.6 * directionFactor;
 	
-	if (int(floor(gl_FragCoord.x)) % 2 == 0)
-		gl_FragColor = vec4(1, 1, 1, 1) * .5f;
-	else
-		gl_FragColor = vec4(clippingDepth, -clippingDepth, abs(clippingDepth) < 0.0001f, 1);
+	//if (int(floor(gl_FragCoord.x)) % 2 == 0)
+	//	gl_FragColor = vec4(1, 1, 1, 1) * .5f;
+	//else
+		gl_FragColor *= 2.f * vec4(
+			clamp(clippingDepth, 0.f, 1.f),
+			clamp(-clippingDepth, 0.f, 1.f),
+			abs(clippingDepth) < 0.0001f,
+			1);
 }
