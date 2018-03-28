@@ -160,7 +160,11 @@ bool Renderer::init(Graphics* graphics)
 {
 	m_programId = loadProgram({
 		{GL_VERTEX_SHADER, "data/shader/vertex.glsl"},
+#ifdef DEBUG
+		{GL_FRAGMENT_SHADER, "data/shader/fragment_debug.glsl"},
+#else
 		{GL_FRAGMENT_SHADER, "data/shader/fragment.glsl"},
+#endif
 		});
 
 	if (!m_programId)
@@ -218,27 +222,35 @@ bool Renderer::init(Graphics* graphics)
 		0,
 		nullptr);
 
-	/*{ // upload portal triangles
-		glm::vec3 portal[] {
-			{0, 0, 0},
-			{1, 0, 0},
-			{1, 1, 0},
-			{0, 0, 0},
-			{1, 1, 0},
-			{0, 1, 0},
-		};
-		glBindBuffer(GL_ARRAY_BUFFER, m_portalVbos[0]);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(portal), portal, GL_STATIC_DRAW);
-	}*/
-
 	glBindVertexArray(0);
+
+	glGenTextures(1, &m_depthTexture);
+	glBindTexture(GL_TEXTURE_2D, m_depthTexture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+  glTexParameteri(GL_TEXTURE_2D, GL_DEPTH_TEXTURE_MODE, GL_INTENSITY);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_R_TO_TEXTURE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32, graphics->windowSize().x, graphics->windowSize().y, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_INT, NULL);
+
+	glGenFramebuffers(1, &m_depthFramebuffer);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_depthFramebuffer);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, m_depthTexture, 0);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	return true;
 }
 
 void Renderer::resize(glm::uvec2 size)
 {
-	
+	glBindTexture(GL_TEXTURE_2D, m_depthTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, size.x, size.y, 0, GL_DEPTH_COMPONENT,	GL_FLOAT, 0);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, m_depthFramebuffer);
+	glViewport(0, 0, size.x, size.y);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
 void Renderer::upload(GameWorld* gameWorld)
@@ -264,28 +276,35 @@ void Renderer::render(Graphics* graphics, GameWorld* gameWorld)
 {
 	upload(gameWorld);
 
+	const Camera& camera = *graphics->m_camera;
+	auto visiblePortals = getVisiblePortals(graphics, gameWorld, camera);
+	
 	glUseProgram(m_programId);
 	glUniform3f(glGetUniformLocation(m_programId, "clippingPositionCameraspace"), 0, 0, 0);
 	glUniform3f(glGetUniformLocation(m_programId, "clippingNormalCameraspace"), 0, 0, 0);
-	renderScene(graphics, gameWorld, *graphics->m_camera);
 
-	renderRecursive(graphics, gameWorld, *graphics->m_camera, 1);
+	renderScene(graphics, gameWorld, *graphics->m_camera, visiblePortals);
+	renderRecursive(graphics, gameWorld, *graphics->m_camera, visiblePortals, 3);
 }
 
-void Renderer::renderRecursive(Graphics* graphics, GameWorld* gameWorld, Camera camera,
-	int max_recursions, int recursion,
-	std::vector<Parall> parentPortals, std::vector<glm::mat4> parentMVPs)
+void Renderer::renderRecursive(
+	Graphics* graphics,
+	GameWorld* gameWorld,
+	Camera camera,
+	const std::vector<Parall>& visiblePortals,
+	int max_recursions,
+	int recursion,
+	std::vector<Parall> parentPortals,
+	std::vector<glm::mat4> parentMVPs)
 {
 	if (recursion >= max_recursions)
 		return;
 
-	auto portals = getVisiblePortals(graphics, gameWorld, camera);
+	for (std::size_t i = 0; i < visiblePortals.size(); i += 2) {
+		auto& p0 = visiblePortals[i    ];
+		auto& p1 = visiblePortals[i + 1];
 
-	for (std::size_t i = 0; i < portals.size(); i += 2) {
-		auto& p0 = portals[i    ];
-		auto& p1 = portals[i + 1];
-
-		auto portalCamera = teleportCamera(camera, p0, p1);
+		auto teleportedCamera = teleportCamera(camera, p0, p1);
 		auto relevantPortals = parentPortals;
 		relevantPortals.push_back(p0);
 		auto relevantMVPs = parentMVPs;
@@ -303,7 +322,7 @@ void Renderer::renderRecursive(Graphics* graphics, GameWorld* gameWorld, Camera 
 		glStencilOp(GL_ZERO, GL_INCR, GL_INCR);
 		glStencilMask(0xff);
 
-		renderPortals(graphics, gameWorld, camera, relevantPortals, relevantMVPs);
+		renderPortalsSeparate(graphics, gameWorld, relevantPortals, relevantMVPs);
 
 		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		glDepthMask(GL_TRUE);
@@ -314,7 +333,7 @@ void Renderer::renderRecursive(Graphics* graphics, GameWorld* gameWorld, Camera 
 
 		//std::cout << camera << std::endl << portalCamera << std::endl << std::endl;
 		const auto& clippingPortal = p1;
-		auto MV = portalCamera.matrix();
+		auto MV = teleportedCamera.matrix();
 		auto clippingPositionCameraspace = MV * glm::vec4(clippingPortal.pos, 1);
 		auto clippingNormalCameraspace =
 			glm::normalize(MV * glm::vec4(glm::normalize(glm::cross(clippingPortal.right, clippingPortal.up)), 0));
@@ -325,21 +344,51 @@ void Renderer::renderRecursive(Graphics* graphics, GameWorld* gameWorld, Camera 
 		glUniform3f(glGetUniformLocation(m_programId, "clippingNormalCameraspace"),
 			clippingNormalCameraspace.x, clippingNormalCameraspace.y, clippingNormalCameraspace.z);
 
-		renderScene(graphics, gameWorld, portalCamera);
+		renderScene(graphics, gameWorld, teleportedCamera, visiblePortals);
 
 		glDisable(GL_STENCIL_TEST);
 
-		renderRecursive(graphics, gameWorld, teleportCamera(camera, p0, p1), max_recursions, recursion + 1,
-			relevantPortals, relevantMVPs);
+		renderRecursive(
+			graphics,
+			gameWorld,
+			teleportedCamera,
+			getVisiblePortals(graphics, gameWorld, teleportedCamera),
+			max_recursions,
+			recursion + 1,
+			relevantPortals,
+			relevantMVPs);
 	}
 }
 
-void Renderer::renderPortals(Graphics* graphics, GameWorld* gameWorld, Camera camera,
-	std::vector<Parall> portals, std::vector<glm::mat4> MVPs)
+void Renderer::renderPortals(
+	Graphics* graphics,
+	GameWorld* gameWorld,
+	Camera camera,
+	std::vector<Parall> portals)
+{
+	const auto triangles = parallsToTriangles(portals);
+	glBindBuffer(GL_ARRAY_BUFFER, m_portalVbos[0]);
+	glBufferData(GL_ARRAY_BUFFER, triangles.size() * sizeof(glm::vec3), triangles.data(), GL_STATIC_DRAW);
+
+	glUseProgram(m_simpleProgramId);
+
+	const glm::mat4 MVP = camera.m_lense.matrix() * camera.matrix();
+	glUniformMatrix4fv(glGetUniformLocation(m_simpleProgramId, "MVP"), 1, GL_FALSE, &MVP[0][0]);
+
+	glBindVertexArray(m_portalVao);
+	glDrawArrays(GL_TRIANGLES, 0, triangles.size());
+	glBindVertexArray(0);
+}
+
+void Renderer::renderPortalsSeparate(
+	Graphics* graphics,
+	GameWorld* gameWorld,
+	std::vector<Parall> portals,
+	std::vector<glm::mat4> MVPs)
 {
 	assert(portals.size() == MVPs.size());
 
-	auto triangles = parallsToTriangles(portals);
+	const auto triangles = parallsToTriangles(portals);
 	glBindBuffer(GL_ARRAY_BUFFER, m_portalVbos[0]);
 	glBufferData(GL_ARRAY_BUFFER, triangles.size() * sizeof(glm::vec3), triangles.data(), GL_STATIC_DRAW);
 
@@ -353,8 +402,26 @@ void Renderer::renderPortals(Graphics* graphics, GameWorld* gameWorld, Camera ca
 	glBindVertexArray(0);
 }
 
-void Renderer::renderScene(Graphics* graphics, GameWorld* gameWorld, Camera camera)
+void Renderer::renderScene(
+	Graphics* graphics,
+	GameWorld* gameWorld,
+	Camera camera,
+	const std::vector<Parall>& visiblePortals)
 {
+	glUseProgram(m_simpleProgramId);
+	glBindFramebuffer(GL_FRAMEBUFFER, m_depthFramebuffer);
+	glClear(GL_DEPTH_BUFFER_BIT);
+	glDrawBuffer(GL_NONE);
+  glReadBuffer(GL_NONE);
+
+	glEnable(GL_CULL_FACE);
+	renderPortals(graphics, gameWorld, camera, visiblePortals);
+	glDisable(GL_CULL_FACE);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glDrawBuffer(GL_BACK);
+  glReadBuffer(GL_BACK);
+
 	glUseProgram(m_programId);
 
 	glm::mat4 M = glm::mat4(1.f);
@@ -365,6 +432,7 @@ void Renderer::renderScene(Graphics* graphics, GameWorld* gameWorld, Camera came
 	glUniformMatrix4fv(glGetUniformLocation(m_programId, "M"), 1, GL_FALSE, &M[0][0]);
 	glUniformMatrix4fv(glGetUniformLocation(m_programId, "V"), 1, GL_FALSE, &V[0][0]);
 	glUniformMatrix4fv(glGetUniformLocation(m_programId, "MVP"), 1, GL_FALSE, &MVP[0][0]);
+	glUniform2f(glGetUniformLocation(m_programId, "viewportSize"), graphics->windowSize().x, graphics->windowSize().y);
 
 	glBindVertexArray(m_sceneVao);
 	glDrawArrays(GL_TRIANGLES, 0, m_verticesCount);

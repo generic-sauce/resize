@@ -22,11 +22,33 @@ public:
 	void render(Graphics* graphics, GameWorld* gameWorld);
 
 private:
-	void renderRecursive(Graphics* graphics, GameWorld* gameWorld, Camera camera, int max_recursions,
-		int recursion = 0, std::vector<Parall> parentPortals = {}, std::vector<glm::mat4> parentMVPs = {});
-	void renderPortals(Graphics* graphics, GameWorld* gameWorld,
-		Camera camera, std::vector<Parall> portals, std::vector<glm::mat4> MVPs);
-	void renderScene(Graphics* graphics, GameWorld* gameWorld, Camera camera);
+	void renderRecursive(
+		Graphics* graphics,
+		GameWorld* gameWorld,
+		Camera camera,
+		const std::vector<Parall>& visiblePortals,
+		int max_recursions,
+		int recursion = 0,
+		std::vector<Parall> parentPortals = {},
+		std::vector<glm::mat4> parentMVPs = {});
+
+	void renderPortals(
+		Graphics* graphics,
+		GameWorld* gameWorld,
+		Camera camera,
+		std::vector<Parall> portals);
+
+	void renderPortalsSeparate(
+		Graphics* graphics,
+		GameWorld* gameWorld,
+		std::vector<Parall> portals,
+		std::vector<glm::mat4> MVPs);
+
+	void renderScene(
+		Graphics* graphics,
+		GameWorld* gameWorld,
+		Camera camera,
+		const std::vector<Parall>& visiblePortals);
 
 	std::vector<Parall> getVisiblePortals(Graphics* graphics, GameWorld* gameWorld, Camera camera);
 	Camera teleportCamera(Camera camera, Parall inPortal, Parall outPortal);
@@ -40,6 +62,9 @@ private:
 	GLuint m_sceneVbos[2];
 	GLuint m_portalVao;
 	GLuint m_portalVbos[1];
+
+	GLuint m_depthFramebuffer;
+	GLuint m_depthTexture;
 
 	std::size_t m_verticesCount;
 };

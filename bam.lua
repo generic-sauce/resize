@@ -22,6 +22,7 @@ AddTool(function(settings)
 		settings.debug = 1
 		settings.optimize = 0
 	  settings.cc.flags:Add("-g")
+		settings.cc.flags:Add("-DDEBUG")
 	elseif conf == "release" then
 		settings.debug = 0
 		settings.optimize = 1
