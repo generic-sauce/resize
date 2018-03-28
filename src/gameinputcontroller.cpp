@@ -26,7 +26,7 @@ GameInputController::GameInputController(Graphics* graphics, GameWorld* gameWorl
 	: m_camera(graphics->m_camera)
 	, m_graphics(graphics)
 	, m_gameWorld(gameWorld)
-	, m_horizontalAngle(0)
+	, m_horizontalAngle(3.14f)
 	, m_verticalAngle(0)
 	, m_cursorSpeed(.1f)
 	, m_moveSpeed(1)
