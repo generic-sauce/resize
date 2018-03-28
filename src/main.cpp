@@ -1,6 +1,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <algorithm>
 
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
@@ -33,16 +34,15 @@ int main()
 	//	return 0;
 
 	std::cout << "running game..." << std::endl;
+
 	using namespace std::chrono_literals;
 	std::chrono::steady_clock clock;
 	auto beginTime = clock.now();
 	auto prevTime = beginTime;
+	auto curTime = beginTime;
+	auto deltaTime = 0ms;
 
 	while (!glfwWindowShouldClose(graphics.window())) {
-		auto curTime = clock.now();
-		auto deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(curTime - prevTime);
-		prevTime = curTime;
-
 		glfwPollEvents();
 		if (glfwGetKey(graphics.window(), GLFW_KEY_ESCAPE))
 			glfwSetWindowShouldClose(graphics.window(), true);
@@ -54,8 +54,10 @@ int main()
 		graphics.update();
 		graphics.render(&gameWorld);
 
-		using namespace std::chrono_literals;
-		std::this_thread::sleep_for(35ms);
+		curTime = clock.now();
+		deltaTime = std::chrono::duration_cast<std::chrono::milliseconds>(curTime - prevTime);
+		std::this_thread::sleep_for(std::max(0ms, 1000ms / 30 - deltaTime));
+		prevTime = clock.now();
 
 		//std::cout << getchar() << std::endl;
 	}

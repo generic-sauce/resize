@@ -95,6 +95,19 @@ void GameInputController::update(std::chrono::milliseconds deltaTime)
 	if (getKey(GLFW_KEY_G) == GLFW_PRESS) {
 		g_keyStates[GLFW_KEY_G] = GLFW_REPEAT;
 
+		m_gameWorld->m_paralls.push_back({parallPos - parallRight * .1f - parallUp * .1f,
+			parallRight * 1.2f,
+			parallUp * .1f}); // bottom
+		m_gameWorld->m_paralls.push_back({parallPos - parallRight * .1f + parallUp,
+			parallRight * 1.2f,
+			parallUp * .1f}); // top
+		m_gameWorld->m_paralls.push_back({parallPos - parallRight * .1f,
+			parallRight * .1f,
+			parallUp}); // left
+		m_gameWorld->m_paralls.push_back({parallPos + parallRight,
+			parallRight * .1f,
+			parallUp}); // right
+
 		static std::optional<Parall> portal;
 
 		if (portal) {
@@ -103,6 +116,7 @@ void GameInputController::update(std::chrono::milliseconds deltaTime)
 			m_gameWorld->m_portals.push_back({parallPos, parallRight, parallUp});
 			m_gameWorld->m_portalLinks[m_gameWorld->m_portals.size() - 1] = m_gameWorld->m_portals.size() - 2;
 			m_gameWorld->m_portalLinks[m_gameWorld->m_portals.size() - 2] = m_gameWorld->m_portals.size() - 1;
+
 			portal = {};
 		} else {
 			std::cout << "+ portal" << std::endl;

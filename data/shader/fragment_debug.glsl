@@ -10,10 +10,10 @@ in float portalDistance;
 
 void main()
 {
-	if (portalDistance > 0.f)
-		discard;
-	if (gl_FragCoord.z > texture(portalDepthTex, gl_FragCoord.xy / viewportSize).r)
-		discard;
+	//if (portalDistance > 0.f)
+	//	discard;
+	//if (gl_FragCoord.z > texture(portalDepthTex, gl_FragCoord.xy / viewportSize).r)
+	//	discard;
 
 	vec4 cameraDirection = vec4(0, 0, -1, 0);
 
@@ -24,14 +24,14 @@ void main()
 		+ vec4(1, 1, 1, 1) * 0.6
 		+ vec4(1, 1, 1, 1) * 0.4 * angleFactor
 		- vec4(1, 1, 1, 1) * 0.5 *  (-1 / ((length(positionCameraspace) / 10) + 1) + 1);
-	
+
 	gl_FragColor *= 2.f * vec4(
 		portalDistance > 0.f ? 1.f : 0.f,
 		portalDistance < 0.f ? 1.f : 0.f,
 		portalDistance == 0.f,
 		1);
 
-	/*if (gl_FragCoord.z > texture(portalDepthTex, gl_FragCoord.xy / viewportSize).r) {
-		gl_FragColor = vec4(1, 1, 0, 1);
-	}*/
+	if (gl_FragCoord.z > texture(portalDepthTex, gl_FragCoord.xy / viewportSize).r) {
+		gl_FragColor = vec4(1, .4f, .1f, 1);
+	}
 }

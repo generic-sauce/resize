@@ -10,7 +10,7 @@ do
 end
 
 -- variables
-conf = ScriptArgs["conf"] or "debug"
+conf = ScriptArgs["conf"] == "release" and "release" or "debug"
 build_dir = ScriptArgs["build_dir"] or "build"
 build_dir = PathJoin(build_dir, conf)
 src_dir = "src"

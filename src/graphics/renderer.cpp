@@ -284,7 +284,7 @@ void Renderer::render(Graphics* graphics, GameWorld* gameWorld)
 	glUniform3f(glGetUniformLocation(m_programId, "clippingNormalCameraspace"), 0, 0, 0);
 
 	renderScene(graphics, gameWorld, *graphics->m_camera, visiblePortals);
-	renderRecursive(graphics, gameWorld, *graphics->m_camera, visiblePortals, 3);
+	renderRecursive(graphics, gameWorld, *graphics->m_camera, visiblePortals, 1);
 }
 
 void Renderer::renderRecursive(
